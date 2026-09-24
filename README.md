@@ -1,25 +1,17 @@
-# 🌿 ESP32 Smart Greenhouse Monitoring & Control System
+# Contoh Code LSP K6 Little Fs
 > Web Server IoT berbasis **ESP32**, **LittleFS**, dan **ESPAsyncWebServer** untuk pemantauan parameter mikroklimat (suhu, kelembapan udara, kelembapan tanah) serta aktuasi otomatis relay pompa air dan kipas ventilasi.
 
 ---
 
-## 👥 Tim Peserta Uji Kompetensi LSP
-Proyek ini dikembangkan dan diuji oleh tim peserta uji kompetensi:
-1. **Ali Akbar**
-2. **Nadif Savero**
-3. **Alif Azka**
-4. **Welly**
-
----
 
 ## 📂 1. Struktur Folder Proyek
 
 Untuk menjalankan website pada ESP32 menggunakan **LittleFS**, file kode program Arduino (`.ino`) dan file aset web (HTML, CSS, JS) dipisahkan secara terstruktur. File web disimpan di dalam folder bernama `data/`:
 
 ```text
-ESP32_Greenhouse_Project/
+Contoh_LSPK6/
 │
-├── ESP32_Greenhouse_Project.ino   # Program C++ utama (WiFi, Sensor, WebServer, Logika Otomatis)
+├── Contoh_LSPK6.ino   # Program C++ utama (WiFi, Sensor, WebServer, Logika Otomatis)
 │
 └── data/                          # Folder sistem file LittleFS (di-flash ke memori flash ESP32)
     ├── index.html                 # Struktur tampilan web (Zero-CDN, inline SVG icons)
@@ -198,10 +190,18 @@ Sistem dilengkapi kontrol otomatis berbasis ambang batas (*threshold*) dan histe
    - Pasang Board Package **ESP32 by Espressif Systems**.
    - Pasang Library: `ESPAsyncWebServer`, `AsyncTCP`, `DHT sensor library`, `LiquidCrystal_I2C`, `ArduinoJson`.
    - Pasang tool plugin **Arduino ESP32 LittleFS Filesystem Uploader**.
-2. **Upload File Web (Folder `data/`):**
-   - Pastikan Serial Monitor dalam keadaan **tertutup**.
-   - Klik menu **Tools > ESP32 Sketch Data Upload** (atau *Upload Filesystem Image* di PlatformIO).
-   - Tunggu hingga selesai dan tertera pesan `LittleFS Image Uploaded`.
+2. **Upload File Website ke LittleFS (Folder `data/`):**
+   - Pastikan file `index.html`, `style.css`, dan `script.js` sudah berada di dalam folder `data/` di samping sketch `.ino`.
+   - Pastikan Serial Monitor dalam keadaan **TERTUTUP** agar port COM tidak sibuk.
+   - Tekan kombinasi tombol:
+     ```text
+     Ctrl + Shift + P    (atau Cmd + Shift + P di macOS)
+     ```
+   - Di kolom Command Palette yang muncul, ketik dan pilih:
+     ```text
+     Upload LittleFS to Pico/ESP8266/ESP32
+     ```
+   - Tunggu proses pembuatan filesystem image dan flashing ke memori flash ESP32 hingga selesai (ditandai pesan sukses pada output console).
 3. **Upload Program Utama:**
    - Klik tombol **Upload** (`Ctrl + U`) untuk mengunggah `ESP32_Greenhouse_Project.ino`.
 4. **Buka Website:**
