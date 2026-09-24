@@ -11,7 +11,7 @@ const char* ssid = "faiz";
 const char* password = "arshaka18";
 
 // --- Konfigurasi ThingSpeak ---
-String apiKey = "..............................";  // write API Key ThingSpeak Anda
+String apiKey = ".";  // write API Key ThingSpeak Anda
 const char* serverTS = "http://api.thingspeak.com/update";
 
 // --- Konfigurasi Sensor ---
@@ -33,19 +33,19 @@ float humidity = 23.0;
 int soilPercent = 80;
 bool statePump = false;
 bool stateFan = false;
-bool autoMode = true; // Default: Mode Otomatis Aktif
+bool autoMode = true;  // Default: Mode Otomatis Aktif
 
 // --- Threshold Batas Otomatisasi ---
-const float AUTO_TEMP_HIGH = 31.0; // Jika suhu > 31°C -> Fan ON
-const float AUTO_TEMP_LOW  = 29.5; // Jika suhu < 29.5°C -> Fan OFF 
-const int AUTO_SOIL_LOW    = 60;   // Jika tanah < 60% -> Pump ON
-const int AUTO_SOIL_HIGH   = 75;   // Jika tanah >= 75% -> Pump OFF 
+const float AUTO_TEMP_HIGH = 31.0;  // Jika suhu > 31°C -> Fan ON
+const float AUTO_TEMP_LOW = 29.5;   // Jika suhu < 29.5°C -> Fan OFF (histeresis)
+const int AUTO_SOIL_LOW = 60;       // Jika tanah < 60% -> Pump ON
+const int AUTO_SOIL_HIGH = 75;      // Jika tanah >= 75% -> Pump OFF (histeresis)
 
 // ================= Timing non-blocking =================
 unsigned long lastSensorRead = 0;
-const unsigned long SENSOR_INTERVAL = 1000;  // baca sensor + kontrol tiap 1 detik
+const unsigned long SENSOR_INTERVAL = 2000;  // baca sensor + kontrol tiap 2 detik
 unsigned long lastThingSpeak = 0;
-const unsigned long THINGSPEAK_INTERVAL = 15000;  // kirim ThingSpeak tiap 15 detik
+const unsigned long THINGSPEAK_INTERVAL = 20000;  // kirim ThingSpeak tiap 20 detik
 
 // ================= LCD I2C =================
 LiquidCrystal_I2C lcd(0x27, 20, 4);
@@ -87,6 +87,19 @@ void sendThingSpeak() {
     Serial.println("Gagal kirim ke ThingSpeak");
   }
   http.end();
+}
+
+// Fungsi bantu untuk merespons dengan JSON status terkini seketika (<10ms)
+void sendStateJson(AsyncWebServerRequest* request) {
+  String json = "{";
+  json += "\"temperature\":" + String(temperature, 1) + ",";
+  json += "\"humidity\":" + String(humidity, 1) + ",";
+  json += "\"soil\":" + String(soilPercent) + ",";
+  json += "\"pump\":" + String(statePump ? 1 : 0) + ",";
+  json += "\"fan\":" + String(stateFan ? 1 : 0) + ",";
+  json += "\"auto\":" + String(autoMode ? 1 : 0);
+  json += "}";
+  request->send(200, "application/json", json);
 }
 
 void setup() {
@@ -137,54 +150,66 @@ void setup() {
   // Serve static files dari LittleFS (/index.html, /style.css, /script.js)
   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
-  // Endpoint data sensor JSON + status relay + mode auto (sinkronisasi ke web)
+  // 1. Endpoint data sensor JSON
   server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) {
-    String json = "{";
-    json += "\"temperature\":" + String(temperature, 1) + ",";
-    json += "\"humidity\":" + String(humidity, 1) + ",";
-    json += "\"soil\":" + String(soilPercent) + ",";
-    json += "\"pump\":" + String(statePump ? 1 : 0) + ",";
-    json += "\"fan\":" + String(stateFan ? 1 : 0) + ",";
-    json += "\"auto\":" + String(autoMode ? 1 : 0);
-    json += "}";
-    request->send(200, "application/json", json);
+    sendStateJson(request);
   });
 
-  // Endpoint ubah Mode Otomatis / Manual (/auto?state=1|0)
+  // 2. Endpoint ubah Mode Otomatis / Manual (/auto?state=1|0)
   server.on("/auto", HTTP_GET, [](AsyncWebServerRequest* request) {
     if (request->hasParam("state")) {
-      String state = request->getParam("state")->value();
-      autoMode = (state == "1");
-      Serial.print("[SERVER] Mode Otomatis diubah: ");
-      Serial.println(autoMode ? "AKTIF" : "NONAKTIF (MANUAL)");
-      request->send(200, "text/plain", autoMode ? "Auto ON" : "Auto OFF");
-    } else {
-      request->send(400, "text/plain", "Bad Request");
+      String stateStr = request->getParam("state")->value();
+      autoMode = (stateStr == "1");
+
+      Serial.print("[KENDALI] Mode berhasil diubah: ");
+      if (autoMode) {
+        Serial.println("OTOMATIS (Sensor mengontrol relay)");
+        // Langsung cek sensor sekarang agar relay langsung merespons
+        if (temperature > AUTO_TEMP_HIGH) {
+          stateFan = true;
+          digitalWrite(RELAY_FAN, HIGH);
+        } else if (temperature < AUTO_TEMP_LOW) {
+          stateFan = false;
+          digitalWrite(RELAY_FAN, LOW);
+        }
+
+        if (soilPercent < AUTO_SOIL_LOW) {
+          statePump = true;
+          digitalWrite(RELAY_PUMP, HIGH);
+        } else if (soilPercent >= AUTO_SOIL_HIGH) {
+          statePump = false;
+          digitalWrite(RELAY_PUMP, LOW);
+        }
+      } else {
+        Serial.println("MANUAL (Sensor dinonaktifkan dari relay)");
+      }
     }
+    // PENTING: Harus balas dengan sendStateJson agar script.js tidak error!
+    sendStateJson(request);
   });
 
-  // Endpoint kontrol Pompa Manual
+  // 3. Endpoint kontrol Pompa Manual
   server.on("/pump", HTTP_GET, [](AsyncWebServerRequest* request) {
     if (request->hasParam("state")) {
       String state = request->getParam("state")->value();
       statePump = (state == "1");
       digitalWrite(RELAY_PUMP, statePump ? HIGH : LOW);
-      request->send(200, "text/plain", statePump ? "Pump ON" : "Pump OFF");
-    } else {
-      request->send(400, "text/plain", "Bad Request");
+      Serial.print("[MANUAL] Pompa Air diubah menjadi: ");
+      Serial.println(statePump ? "ON" : "OFF");
     }
+    sendStateJson(request);
   });
 
-  // Endpoint kontrol Kipas Manual
+  // 4. Endpoint kontrol Kipas Manual
   server.on("/fan", HTTP_GET, [](AsyncWebServerRequest* request) {
     if (request->hasParam("state")) {
       String state = request->getParam("state")->value();
       stateFan = (state == "1");
       digitalWrite(RELAY_FAN, stateFan ? HIGH : LOW);
-      request->send(200, "text/plain", stateFan ? "Fan ON" : "Fan OFF");
-    } else {
-      request->send(400, "text/plain", "Bad Request");
+      Serial.print("[MANUAL] Kipas Ventilasi diubah menjadi: ");
+      Serial.println(stateFan ? "ON" : "OFF");
     }
+    sendStateJson(request);
   });
 
   server.begin();
@@ -197,14 +222,6 @@ void loop() {
   // Baca sensor + update LCD + Logika Otomatis tiap 2 detik (non-blocking)
   if (now - lastSensorRead >= SENSOR_INTERVAL) {
     lastSensorRead = now;
-    
-    // --- Pembacaan Sensor Riil (uncomment jika siap dipasang) ---
-    // float h = dht.readHumidity();
-    // float t = dht.readTemperature();
-    // int soilRaw = analogRead(SOIL_PIN);
-    // if (!isnan(h)) humidity = h;
-    // if (!isnan(t)) temperature = t;
-    // soilPercent = map(soilRaw, 4095, 1500, 0, 100);
 
     // Nilai uji saat ini:
     humidity = 23.0;
@@ -214,6 +231,7 @@ void loop() {
     updateLCD();
 
     // ================= LOGIKA KONTROL OTOMATIS =================
+    // HANYA JALAN JIKA autoMode == true!
     if (autoMode) {
       // 1. Kipas Otomatis berdasarkan Suhu
       if (temperature > AUTO_TEMP_HIGH && !stateFan) {
