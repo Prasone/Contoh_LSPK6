@@ -107,7 +107,7 @@ Ketika browser klien membuka IP ESP32 (misal `http://192.168.1.17`):
    ```
 
 2. **Di Sisi Website (`script.js`):**
-   Browser secara non-blocking meminta data setiap 2 detik menggunakan `Fetch API`:
+   Browser secara non-blocking meminta data setiap 600 milidetik menggunakan `Fetch API`:
    ```javascript
    async function fetchSensorData() {
      const response = await fetch('/data', { cache: 'no-cache' });
@@ -123,7 +123,7 @@ Ketika browser klien membuka IP ESP32 (misal `http://192.168.1.17`):
      document.getElementById('fanToggle').checked = Boolean(data.fan);
    }
 
-   setInterval(fetchSensorData, 2000);
+   setInterval(fetchSensorData, 600);
    ```
 
 ---
