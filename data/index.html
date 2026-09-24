@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Greenhouse Control - ESP32</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dashboard-wrapper">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-title-group">
+        <div class="icon-brand">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a9 9 0 0 1 9 9c0 4.97-4.03 9-9 9s-9-4.03-9-9a9 9 0 0 1 9-9Z"/>
+            <path d="M12 7v10"/>
+            <path d="M8 12h8"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Greenhouse Control</h1>
+          <p class="subtitle">ESP32 LittleFS Smart System</p>
+        </div>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="pulse-dot"></span>
+        <span id="statusText">Online</span>
+      </div>
+    </header>
+
+    <!-- Sensors Grid -->
+    <section class="section">
+      <div class="section-label">Pemantauan Sensor</div>
+      <div class="sensors-grid">
+        <!-- Suhu Udara -->
+        <div class="card sensor-card temp-card">
+          <div class="card-header">
+            <span class="sensor-name">Suhu Udara</span>
+            <svg class="sensor-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+            </svg>
+          </div>
+          <div class="sensor-val-wrap">
+            <span class="sensor-val" id="tempVal">31.8</span>
+            <span class="sensor-unit">°C</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill temp-fill" id="tempBar" style="width: 63%;"></div>
+          </div>
+          <div class="card-meta">
+            <span>0°C</span>
+            <span id="tempStatus">Normal</span>
+            <span>50°C</span>
+          </div>
+        </div>
+
+        <!-- Kelembapan Udara -->
+        <div class="card sensor-card hum-card">
+          <div class="card-header">
+            <span class="sensor-name">Kelembapan Udara</span>
+            <svg class="sensor-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+            </svg>
+          </div>
+          <div class="sensor-val-wrap">
+            <span class="sensor-val" id="humVal">65</span>
+            <span class="sensor-unit">%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill hum-fill" id="humBar" style="width: 65%;"></div>
+          </div>
+          <div class="card-meta">
+            <span>0%</span>
+            <span id="humStatus">Ideal</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <!-- Kelembapan Tanah -->
+        <div class="card sensor-card soil-card">
+          <div class="card-header">
+            <span class="sensor-name">Kelembapan Tanah</span>
+            <svg class="sensor-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 22h20"/>
+              <path d="M12 2a5 5 0 0 0-5 5c0 3 5 8 5 8s5-5 5-8a5 5 0 0 0-5-5z"/>
+            </svg>
+          </div>
+          <div class="sensor-val-wrap">
+            <span class="sensor-val" id="soilVal">74</span>
+            <span class="sensor-unit">%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill soil-fill" id="soilBar" style="width: 74%;"></div>
+          </div>
+          <div class="card-meta">
+            <span>0%</span>
+            <span id="soilStatus">Subur & Lembap</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Relay Actuators -->
+    <section class="section">
+      <div class="section-label">Kendali Otomatis & Relay</div>
+
+      <!-- Mode Otomatis Card -->
+      <div class="card auto-mode-card" id="autoModeCard">
+        <div class="auto-mode-info">
+          <div class="auto-title-row">
+            <span class="auto-title">Mode Otomatis (Smart Auto)</span>
+            <span class="mode-badge" id="autoBadge">Manual</span>
+          </div>
+          <p class="auto-desc">
+            Fan ON jika Suhu &gt; 31°C · Pompa ON jika Tanah &lt; 60%
+          </p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoToggle" onchange="toggleAuto(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="relay-list">
+        <!-- Relay 1: Pompa Air -->
+        <div class="card relay-card" id="relayCard1">
+          <div class="relay-info">
+            <div class="relay-icon-box pump-box">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/>
+                <path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/>
+              </svg>
+            </div>
+            <div>
+              <div class="relay-title">Pompa Air (Pump)</div>
+              <div class="relay-sub" id="pumpSub">Status: OFF · Siap</div>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="pumpToggle" onchange="togglePump(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Relay 2: Kipas Ventilasi -->
+        <div class="card relay-card" id="relayCard2">
+          <div class="relay-info">
+            <div class="relay-icon-box fan-box">
+              <svg id="fanIconSvg" class="fan-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/>
+                <circle cx="12" cy="12" r="2"/>
+              </svg>
+            </div>
+            <div>
+              <div class="relay-title">Kipas Ventilasi (Fan)</div>
+              <div class="relay-sub" id="fanSub">Status: OFF · Standby</div>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="fanToggle" onchange="toggleFan(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer Peserta LSP & Info Sistem -->
+    <footer class="footer">
+      <div class="footer-team">
+        <div class="team-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Peserta Uji Kompetensi LSP:</span>
+        </div>
+        <div class="team-members">
+          <span class="member-chip">Ali Akbar</span>
+          <span class="member-chip">Nadif Savero</span>
+          <span class="member-chip">Alif Azka</span>
+          <span class="member-chip">Welly</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>Pembaruan: <strong id="lastUpdate">Baru saja</strong></span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
